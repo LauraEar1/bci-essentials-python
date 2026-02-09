@@ -13,7 +13,14 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from pyriemann.preprocessing import Whitening
 from pyriemann.estimation import Covariances
-from pyriemann.classification import MDM, TSclassifier
+from pyriemann.classification import MDM 
+
+# pyriemann API changed, TSclassifier is now TSClassifier, importing both in case of different versions in the future
+try:
+    from pyriemann.classification import TSclassifier  # older versions
+except ImportError:
+    from pyriemann.classification import TSClassifier as TSclassifier  # pyriemann>=0.10 
+
 from pyriemann.channelselection import FlatChannelRemover
 
 # Import bci_essentials modules and methods

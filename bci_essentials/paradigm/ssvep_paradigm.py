@@ -39,6 +39,9 @@ class SsvepParadigm(Paradigm):
         self.live_update = live_update
         self.iterative_training = iterative_training
 
+        self.lowcut = filters[0]
+        self.highcut = filters[1]
+
         if self.live_update:
             self.classify_each_epoch = True
             self.classify_each_trial = False
@@ -49,6 +52,11 @@ class SsvepParadigm(Paradigm):
         self.buffer_time = buffer_time
 
         self.paradigm_name = "SSVEP"
+
+        # Online windowing defaults (used by controller during online mode)
+        self.online_epoch_len = 2.5
+        self.online_stride = 0.25
+        self.target_freqs = [8.0, 14.0]
 
     def get_eeg_start_and_end_times(self, markers, timestamps):
         """
