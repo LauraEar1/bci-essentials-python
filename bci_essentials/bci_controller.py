@@ -35,12 +35,26 @@ logger = Logger(name=__name__)
 
 
 class MarkerTypes(Enum):
+    TRAINING_START = "Training Started"
     TRIAL_STARTED = "Trial Started"
     TRIAL_ENDS = "Trial Ends"
     TRAINING_COMPLETE = "Training Complete"
     TRAIN_CLASSIFIER = "Train Classifier"
     DONE_RS_COLLECTION = "Done with all RS collection"
     UPDATE_CLASSIFIER = "Update Classifier"
+    CUE_LEFT = "Cue Left"
+    CUE_RIGHT = "Cue Right"
+    
+    CONDITION_MI_START = "Condition MI Start"
+    CONDITION_MI_END = "Condition MI End"
+    CONDITION_SSVEP_START = "Condition SSVEP Start"
+    CONDITION_SSVEP_END = "Condition SSVEP End"
+    
+    ONLINE_MI_START = "Online MI Started"
+    ONLINE_MI_END = "Online MI Ended"
+    ONLINE_SSVEP_START = "Online SSVEP Start"
+    ONLINE_SSVEP_END = "Online SSVEP End"
+    
 
 
 # EEG data
