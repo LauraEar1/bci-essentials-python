@@ -40,7 +40,7 @@ class MarkerTypes(Enum):
     TRIAL_ENDS = "Trial Ends"
     TRAINING_COMPLETE = "Training Complete"
     TRAIN_CLASSIFIER = "Train Classifier"
-    DONE_RS_COLLECTION = "Done with all RS collection"
+    DONE_RS_COLLECTION = "Done with all RS collection" ## Add a resting state collection in UNITY for future analysis
     UPDATE_CLASSIFIER = "Update Classifier"
     CUE_LEFT = "Cue Left"
     CUE_RIGHT = "Cue Right"
@@ -164,6 +164,7 @@ class BciController:
         train_lock=False,
         auto_save_epochs=True,
     ):
+
         """Configure processing loop.
 
         This should be called before starting the loop with run() or step().
@@ -219,6 +220,9 @@ class BciController:
         self.num_online_selections = 0
         self.online_selection_indices = []
         self.online_selections = []
+        
+        self.event_marker_buffer = []
+        self.event_timestamp_buffer = []
 
         # Check for a temp_epochs file
         if online:
