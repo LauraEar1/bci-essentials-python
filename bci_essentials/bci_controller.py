@@ -221,9 +221,6 @@ class BciController:
         self.online_selection_indices = []
         self.online_selections = []
         
-        self.event_marker_buffer = []
-        self.event_timestamp_buffer = []
-
         # Check for a temp_epochs file
         if online:
             self.__load_temp_epochs_if_available()
@@ -541,7 +538,11 @@ class BciController:
             logger.warning("No timestamps exceed eeg_start_time")
             return "Skip"
         start_index = start_indices[0]
-        end_index = np.where(timestamps < eeg_end_time)[0][-1]
+        end_indices = np.where(timestamps < eeg_end_time)[0]
+        if len(end_indices) == 0:
+            logger.warning("No timestamps below eeg_end_time")
+            return "Skip"
+        end_index = end_indices[-1]
 
         time_diffs = np.diff(timestamps[start_index:end_index])
         if np.any(time_diffs > 2 / self.fsample):
@@ -576,8 +577,20 @@ class BciController:
         # If either there are no labels OR iterative training is on, then make a prediction
         if self.train_complete:
             if -1 in y or self.__paradigm.iterative_training:
+                logger.info(
+                    "Sending prediction (train_complete=%s, iterative_training=%s, has_unlabeled=%s)",
+                    self.train_complete,
+                    self.__paradigm.iterative_training,
+                    (-1 in y),
+                )
                 prediction = self._classifier.predict(X)
                 self.__send_prediction(prediction)
+            else:
+                logger.info(
+                    "Prediction skipped (iterative_training=%s, has_unlabeled=%s)",
+                    self.__paradigm.iterative_training,
+                    (-1 in y),
+                )
 
         self.event_marker_buffer = []
         self.event_timestamp_buffer = []
