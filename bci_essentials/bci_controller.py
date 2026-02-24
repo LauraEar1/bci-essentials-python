@@ -141,6 +141,7 @@ class BciController:
         self.marker_timestamps = np.zeros((0))
         self.bci_controller = np.zeros((0, self.n_channels))
         self.eeg_timestamps = np.zeros((0))
+        self._last_wait_log_ts = 0.0
 
         # Initialize marker methods dictionary
         self.marker_methods = {
@@ -162,7 +163,7 @@ class BciController:
         online=True,
         train_complete=False,
         train_lock=False,
-        auto_save_epochs=True,
+        auto_save_epochs=False,
     ):
 
         """Configure processing loop.
@@ -530,17 +531,44 @@ class BciController:
 
         # If the last timestamp is less than the end time, then we don't have the necessary EEG to process
         if timestamps[-1] < eeg_end_time:
+            now = time.time()
+            if (now - self._last_wait_log_ts) >= 1.0:
+                logger.warning(
+                    "Waiting for EEG data: eeg_time_range=%.6f..%.6f (span=%.3fs), needed_end=%.6f, markers=%s",
+                    timestamps[0],
+                    timestamps[-1],
+                    (timestamps[-1] - timestamps[0]),
+                    eeg_end_time,
+                    list(self.event_marker_buffer),
+                )
+                self._last_wait_log_ts = now
             return "Wait"
 
         # Check if EEG sampling is continuous over this time period
         start_indices = np.where(timestamps > eeg_start_time)[0]
         if len(start_indices) == 0:
-            logger.warning("No timestamps exceed eeg_start_time")
+            logger.warning(
+                "No timestamps exceed eeg_start_time: eeg_time_range=%.6f..%.6f (span=%.3fs), start=%.6f, end=%.6f, markers=%s",
+                timestamps[0],
+                timestamps[-1],
+                (timestamps[-1] - timestamps[0]),
+                eeg_start_time,
+                eeg_end_time,
+                list(self.event_marker_buffer),
+            )
             return "Skip"
         start_index = start_indices[0]
         end_indices = np.where(timestamps < eeg_end_time)[0]
         if len(end_indices) == 0:
-            logger.warning("No timestamps below eeg_end_time")
+            logger.warning(
+                "No timestamps below eeg_end_time: eeg_time_range=%.6f..%.6f (span=%.3fs), start=%.6f, end=%.6f, markers=%s",
+                timestamps[0],
+                timestamps[-1],
+                (timestamps[-1] - timestamps[0]),
+                eeg_start_time,
+                eeg_end_time,
+                list(self.event_marker_buffer),
+            )
             return "Skip"
         end_index = end_indices[-1]
 
