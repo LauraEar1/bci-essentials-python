@@ -51,6 +51,13 @@ class MiClassifier(GenericClassifier):
         pred_threshold=0.5,
         random_seed=42,
         n_jobs=1,
+    ):
+        """Set MI classifier settings.
+
+        Parameters
+        ----------
+        n_splits : int, *optional*
+            Number of folds for cross-validation.
             - Default is `5`.
         type : str, *optional*
             Type of classifier to be used.
