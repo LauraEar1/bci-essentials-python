@@ -299,6 +299,11 @@ class MiClassifier(GenericClassifier):
         self.offline_recall.append(recall)
         logger.info("Recall = %s", recall)
 
+         # ITR
+        itr = self.calculate_itr(accuracy, len(np.unique(self.y)))
+        self.offline_itr.append(itr)
+        logger.info("ITR = %s bits/min", itr)
+
         # confusion matrix in command line
         cm = confusion_matrix(self.y, preds)
         self.offline_cm = cm

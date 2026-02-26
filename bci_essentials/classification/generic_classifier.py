@@ -6,6 +6,8 @@ Used as Parent classifier class for other classifiers.
 
 # Stock libraries
 from abc import ABC, abstractmethod
+import csv
+import os
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -110,6 +112,9 @@ class GenericClassifier(ABC):
         offline_recall : list of `float`
             Stores offline recall values during training.
             - Initial value is `[]`.
+        offline_itr : list of `float`
+            Stores offline ITR values during training.
+            - Initial value is `[]`.
         offline_trial_count : int
             Counter to keep track of the number of offline trials
             - Initial value is `0`.
@@ -152,6 +157,8 @@ class GenericClassifier(ABC):
         self.offline_precision = []
         """@private (This is just for the API docs, to avoid double listing."""
         self.offline_recall = []
+        """@private (This is just for the API docs, to avoid double listing."""
+        self.offline_itr = []
         """@private (This is just for the API docs, to avoid double listing."""
         self.offline_trial_count = 0
         """@private (This is just for the API docs, to avoid double listing."""
@@ -210,6 +217,116 @@ class GenericClassifier(ABC):
             return False
 
         return True
+
+    def calculate_itr(self, accuracy, n_classes, trial_time_seconds=9.5):
+        """Calculate ITR using the Wolpaw 2002 formula (bits/min).
+
+        Parameters
+        ----------
+        accuracy : float
+            Classification accuracy, from 0.0 to 1.0.
+        n_classes : int
+            Number of unique classes.
+        trial_time_seconds : float, *optional*
+            Trial duration in seconds.
+            - Default is `9.5`.
+
+        Returns
+        -------
+        float
+            ITR in bits/min.
+
+        """
+        if n_classes is None or n_classes < 2:
+            logger.warning("ITR requires at least 2 classes")
+            return 0.0
+
+        if trial_time_seconds is None or trial_time_seconds <= 0:
+            logger.warning("ITR requires a positive trial time")
+            return 0.0
+
+        p = float(accuracy)
+        # Clamp away from 0 and 1 to avoid log2(0)
+        p = min(max(p, 1e-12), 1.0 - 1e-12)
+
+        bits_per_selection = (
+            np.log2(n_classes)
+            + (p * np.log2(p))
+            + ((1.0 - p) * np.log2((1.0 - p) / (n_classes - 1)))
+        )
+
+        return (60.0 / trial_time_seconds) * bits_per_selection
+
+    def save_performance_metrics(self, file_path=None):
+        """Save accuracy/precision/recall/ITR history to a CSV file.
+
+        Parameters
+        ----------
+        file_path : str | None, *optional*
+            Output CSV path. If None, defaults to
+            "efficacy_data/<ClassifierName>_metrics.csv".
+
+        Returns
+        -------
+        str
+            The absolute path to the saved CSV file.
+
+        """
+        if file_path is None:
+            file_path = os.path.join(
+                "efficacy_data", f"{self.__class__.__name__}_metrics.csv"
+            )
+
+        abs_path = os.path.abspath(file_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+
+        rows = []
+        total_rows = max(
+            len(self.offline_accuracy),
+            len(self.offline_precision),
+            len(self.offline_recall),
+            len(self.offline_itr),
+            len(self.offline_trial_counts),
+        )
+
+        for idx in range(total_rows):
+            rows.append(
+                {
+                    "index": idx,
+                    "trial_count": self.offline_trial_counts[idx]
+                    if idx < len(self.offline_trial_counts)
+                    else "",
+                    "accuracy": self.offline_accuracy[idx]
+                    if idx < len(self.offline_accuracy)
+                    else "",
+                    "precision": self.offline_precision[idx]
+                    if idx < len(self.offline_precision)
+                    else "",
+                    "recall": self.offline_recall[idx]
+                    if idx < len(self.offline_recall)
+                    else "",
+                    "itr_bits_per_min": self.offline_itr[idx]
+                    if idx < len(self.offline_itr)
+                    else "",
+                }
+            )
+
+        write_header = not os.path.exists(abs_path)
+        with open(abs_path, "a", newline="", encoding="utf-8") as csv_file:
+            fieldnames = [
+                "index",
+                "trial_count",
+                "accuracy",
+                "precision",
+                "recall",
+                "itr_bits_per_min",
+            ]
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            if write_header:
+                writer.writeheader()
+            writer.writerows(rows)
+
+        return abs_path
 
     def get_subset(self, X=[], subset=[], channel_labels=[]):
         """Get a subset of X according to labels or indices.
