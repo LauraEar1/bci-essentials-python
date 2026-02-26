@@ -51,13 +51,6 @@ class MiClassifier(GenericClassifier):
         pred_threshold=0.5,
         random_seed=42,
         n_jobs=1,
-    ):
-        """Set MI classifier settings.
-
-        Parameters
-        ----------
-        n_splits : int, *optional*
-            Number of folds for cross-validation.
             - Default is `5`.
         type : str, *optional*
             Type of classifier to be used.
@@ -298,11 +291,6 @@ class MiClassifier(GenericClassifier):
         recall = recall_score(self.y, preds, average="micro")
         self.offline_recall.append(recall)
         logger.info("Recall = %s", recall)
-
-         # ITR
-        itr = self.calculate_itr(accuracy, len(np.unique(self.y)))
-        self.offline_itr.append(itr)
-        logger.info("ITR = %s bits/min", itr)
 
         # confusion matrix in command line
         cm = confusion_matrix(self.y, preds)
