@@ -86,7 +86,7 @@ class MiParadigm(Paradigm):
 
     def process_markers(self, markers, marker_timestamps, eeg, eeg_timestamps, fsample):
         """
-        This takes in the markers and EEG data and processes them into epochs accordingt to the MI paradigm.
+        This takes in the markers and EEG data and processes them into epochs according to the MI paradigm.
 
         Parameters
         ----------
