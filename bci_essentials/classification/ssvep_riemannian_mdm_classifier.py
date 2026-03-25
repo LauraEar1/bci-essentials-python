@@ -41,7 +41,7 @@ class SsvepRiemannianMdmClassifier(GenericClassifier):
         n_splits=3,
         random_seed=42,
         n_harmonics=2,
-        f_width=0.2,
+        f_width=1.0,
         covariance_estimator="oas",
         remove_flats=True,
     ):
@@ -252,7 +252,7 @@ class SsvepRiemannianMdmClassifier(GenericClassifier):
                 X_train_super = self.get_ssvep_supertrial(
                     X_train,
                     self.target_freqs,
-                    fsample=256,
+                    fsample=500,
                     n_harmonics=self.n_harmonics,
                     f_width=self.f_width,
                     covariance_estimator=self.covariance_estimator,
@@ -260,7 +260,7 @@ class SsvepRiemannianMdmClassifier(GenericClassifier):
                 X_test_super = self.get_ssvep_supertrial(
                     X_test,
                     self.target_freqs,
-                    fsample=256,
+                    fsample=500,
                     n_harmonics=self.n_harmonics,
                     f_width=self.f_width,
                     covariance_estimator=self.covariance_estimator,
@@ -274,7 +274,7 @@ class SsvepRiemannianMdmClassifier(GenericClassifier):
             X_super = self.get_ssvep_supertrial(
                 subX,
                 self.target_freqs,
-                fsample=256,
+                fsample=500,
                 n_harmonics=self.n_harmonics,
                 f_width=self.f_width,
                 covariance_estimator=self.covariance_estimator,
@@ -323,6 +323,7 @@ class SsvepRiemannianMdmClassifier(GenericClassifier):
             self.clf = channel_selection_results.best_model
         else:
             logger.warning("Not doing channel selection")
+            subX = self.get_subset(subX, self.subset, self.channel_labels)
             current_results = __ssvep_kernel(subX, suby)
             self.clf = current_results.model
             preds = current_results.cv_preds
@@ -381,7 +382,7 @@ class SsvepRiemannianMdmClassifier(GenericClassifier):
         X_super = self.get_ssvep_supertrial(
             X,
             self.target_freqs,
-            fsample=256,
+            fsample=500,
             n_harmonics=self.n_harmonics,
             f_width=self.f_width,
         )

@@ -10,7 +10,7 @@ class MiParadigm(Paradigm):
 
     def __init__(
         self,
-        filters=[5, 30],
+        filters=[8, 30],
         iterative_training=False,
         live_update=False,
         buffer_time=0.01,
@@ -111,68 +111,38 @@ class MiParadigm(Paradigm):
 
         # Legacy marker format: "MI,TRIAL,label,epoch_length"
         if any("," in m for m in markers):
-            # Initialize y
             y = np.zeros(len(markers), dtype=int)
 
-            for i, marker in enumerate(markers):
-                marker = marker.split(",")
-                label = int(marker[2])
-                epoch_length = float(marker[3])
+        for i, marker in enumerate(markers):
+            marker = marker.split(",")
+            label = int(marker[2])
+            epoch_length = float(marker[3])
+            offset = float(marker[4]) if len(marker) > 4 else 0.0  # NEW
 
-                n_channels, _ = eeg.shape
+            n_channels, _ = eeg.shape
 
-                marker_timestamp = marker_timestamps[i]
+            marker_timestamp = marker_timestamps[i]
+            marker_eeg_timestamps = eeg_timestamps - marker_timestamp
 
-                # Subtract the marker timestamp from the EEG timestamps so that 0 becomes the marker onset
-                marker_eeg_timestamps = eeg_timestamps - marker_timestamp
+            epoch_time = np.arange(offset, offset + epoch_length, 1 / fsample)  # CHANGED
 
-                # Create the epoch time vector
-                epoch_time = np.arange(0, epoch_length, 1 / fsample)
+            epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))
 
-                # Initialize the EEG data array
-                epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))
-
-                # Interpolate the EEG data to the epoch time vector for each channel
-                for c in range(n_channels):
-                    epoch_eeg[0, c, :] = np.interp(
-                        epoch_time, marker_eeg_timestamps, eeg[c, :]
-                    )
-
-                epoch_eeg[0, :, :] = super()._preprocess(
-                    epoch_eeg[0, :, :], fsample, self.lowcut, self.highcut
+            for c in range(n_channels):
+                epoch_eeg[0, c, :] = np.interp(
+                    epoch_time, marker_eeg_timestamps, eeg[c, :]
                 )
 
-                if i == 0:
-                    X = epoch_eeg
-                else:
-                    X = np.concatenate((X, epoch_eeg), axis=0)
-
-                y[i] = label
-
-            return X, y
-
-        # Unity marker format
-        start_time, end_time = self._unity_trial_times(markers, marker_timestamps)
-        label = self._unity_trial_label(markers)
-
-        epoch_length = max(0.0, end_time - start_time)
-        n_channels, _ = eeg.shape
-
-        marker_eeg_timestamps = eeg_timestamps - start_time
-        epoch_time = np.arange(0, epoch_length, 1 / fsample)
-
-        epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))
-        for c in range(n_channels):
-            epoch_eeg[0, c, :] = np.interp(
-                epoch_time, marker_eeg_timestamps, eeg[c, :]
+            epoch_eeg[0, :, :] = super()._preprocess(
+                epoch_eeg[0, :, :], fsample, self.lowcut, self.highcut
             )
 
-        epoch_eeg[0, :, :] = super()._preprocess(
-            epoch_eeg[0, :, :], fsample, self.lowcut, self.highcut
-        )
+            if i == 0:
+                X = epoch_eeg
+            else:
+                X = np.concatenate((X, epoch_eeg), axis=0)
 
-        X = epoch_eeg
-        y = np.array([label], dtype=int)
+            y[i] = label
 
         return X, y
 

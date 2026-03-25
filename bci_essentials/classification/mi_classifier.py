@@ -13,7 +13,8 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from pyriemann.preprocessing import Whitening
 from pyriemann.estimation import Covariances
-from pyriemann.classification import MDM 
+from pyriemann.classification import MDM
+from sklearn.base import clone
 
 # pyriemann API changed, TSclassifier is now TSClassifier, importing both in case of different versions in the future
 try:
@@ -46,9 +47,9 @@ class MiClassifier(GenericClassifier):
         type="TS",
         remove_flats=True,
         whitening=False,
-        covariance_estimator="oas",
+        covariance_estimator="lwf", # changed from oas to lwf bc lwf is supposed to be better for small sample sizes
         artifact_rejection="none",
-        pred_threshold=0.5,
+        pred_threshold=0.6,
         random_seed=42,
         n_jobs=1,
     ):
@@ -338,3 +339,15 @@ class MiClassifier(GenericClassifier):
             self.pred_probas.append(pred_proba[i])
 
         return Prediction(labels=pred, probabilities=pred_proba)
+    
+    def __mi_kernel(subX, suby):
+        for train_idx, test_idx in self.cv.split(subX, suby):
+            fold_clf = clone(self.clf_model)
+            X_train, X_test = subX[train_idx], subX[test_idx]
+            y_train = suby[train_idx]
+            fold_clf.fit(X_train, y_train)
+            cv_preds[test_idx] = fold_clf.predict(X_test)
+
+        self.clf = clone(self.clf_model)
+        self.clf.fit(subX, suby)
+        model = self.clf
