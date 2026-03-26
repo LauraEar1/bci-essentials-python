@@ -16,6 +16,8 @@ class SsvepParadigm(Paradigm):
         iterative_training=False,
         live_update=False,
         buffer_time=0.01,
+        unity_epoch_leng=1.0,
+        unity_epoch_offset=0.5
     ):
         """
         Parameters
@@ -33,6 +35,13 @@ class SsvepParadigm(Paradigm):
         buffer_time : float, *optional*
             Defines the time in seconds after an epoch for which we require EEG data to ensure that all EEG is present in that epoch.
             - Default is `0.01`.
+        Added parameters:
+        unity_epoch_len : float, *optional*
+            Length of the Unity epoch in seconds.
+            - Default is `4.0`.
+        unity_epoch_offset : float, *optional*
+            Offset of the Unity epoch in seconds.
+            - Default is `0.5`.
         """
         super().__init__(filters)
 
@@ -50,6 +59,8 @@ class SsvepParadigm(Paradigm):
             self.classify_each_epoch = False
 
         self.buffer_time = buffer_time
+        self.unity_epoch_len = 1.0
+        self.unity_epoch_offset = 0.5
 
         self.paradigm_name = "SSVEP"
 
@@ -76,11 +87,22 @@ class SsvepParadigm(Paradigm):
         float
             End time.
         """
-        start_time = timestamps[0] - self.buffer_time
+        if any("," in m for m in markers):
+            start_time = timestamps[0] - self.buffer_time
+            last_parts = markers[-1].split(",")
+            epoch_len = float(last_parts[3]) if len(last_parts) > 3 else 1.0
+            epoch_offset = float(last_parts[4]) if len(last_parts) > 4 else 0.0
+            end_time = timestamps[-1] + epoch_offset + epoch_len + self.buffer_time
+            return start_time, end_time
 
-        end_time = timestamps[-1] + float(markers[-1].split(",")[3]) + self.buffer_time
+        # Unity path — request only the window we actually need
+        start_time = timestamps[0]
+        for m, ts in zip(markers, timestamps):
+            if str(m).strip().upper() == "SSVEP TRIAL STARTED":
+                start_time = ts
 
-        return start_time, end_time
+        end_time = start_time + self.unity_epoch_offset + self.unity_epoch_len
+        return start_time - self.buffer_time, end_time + self.buffer_time
 
     def process_markers(self, markers, marker_timestamps, eeg, eeg_timestamps, fsample):
         """
@@ -107,14 +129,45 @@ class SsvepParadigm(Paradigm):
             Labels. Shape is (n_epochs).
         """
 
-        # Initialize y
-        y = np.zeros(len(markers), dtype=int)
+    # Unity format — no commas in markers
+        if not any("," in m for m in markers):
+            label = 0
+            start_time = marker_timestamps[0]
+            for m, ts in zip(markers, marker_timestamps):
+                upper = str(m).strip().upper()
+                if upper == "SSVEP CUE LEFT":
+                    label = 0
+                elif upper == "SSVEP CUE RIGHT":
+                    label = 1
+                if upper == "SSVEP TRIAL STARTED":
+                    start_time = ts
 
+            n_channels, _ = eeg.shape
+            marker_eeg_timestamps = eeg_timestamps - start_time
+            epoch_time = np.arange(
+                self.unity_epoch_offset,
+                self.unity_epoch_offset + self.unity_epoch_len,
+                1 / fsample
+            )
+            epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))
+            for c in range(n_channels):
+                epoch_eeg[0, c, :] = np.interp(epoch_time, marker_eeg_timestamps, eeg[c, :])
+            epoch_eeg[0, :, :] = super()._preprocess(epoch_eeg[0, :, :], fsample, self.lowcut, self.highcut)
+            return epoch_eeg, np.array([label], dtype=int)
+
+        # Legacy format — original code unchanged below
+        y = np.zeros(len(markers), dtype=int)
         for i, marker in enumerate(markers):
             marker = marker.split(",")
-            label = int(marker[2])
+
+            # Expected format:
+            # SSVEP,TRIAL,{label},{epoch_len},{offset},{freq1},{freq2},...
+            if len(marker) < 4:
+                raise ValueError(f"Malformed SSVEP marker: {markers[i]}")
+
+            label = int(float(marker[2]))
             epoch_length = float(marker[3])
-            self.target_freqs = [float(x) for x in marker[4:]]
+            epoch_offset = float(marker[4]) if len(marker) > 4 else 0.0
 
             n_channels, _ = eeg.shape
 
@@ -124,7 +177,7 @@ class SsvepParadigm(Paradigm):
             marker_eeg_timestamps = eeg_timestamps - marker_timestamp
 
             # Create the epoch time vector
-            epoch_time = np.arange(0, epoch_length, 1 / fsample)
+            epoch_time = np.arange(epoch_offset, epoch_offset + epoch_length, 1 / fsample)
 
             # Initialize the EEG data array
             epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))

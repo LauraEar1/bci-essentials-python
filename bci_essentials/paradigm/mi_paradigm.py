@@ -10,7 +10,7 @@ class MiParadigm(Paradigm):
 
     def __init__(
         self,
-        filters=[8, 30],
+        filters=[5, 30],
         iterative_training=False,
         live_update=False,
         buffer_time=0.01,
@@ -48,6 +48,8 @@ class MiParadigm(Paradigm):
             self.classify_each_epoch = False
 
         self.buffer_time = buffer_time
+        self.unity_epoch_len = 4.0
+        self.unity_epoch_offset = 0.5
 
         self.paradigm_name = "MI"
 
@@ -69,7 +71,6 @@ class MiParadigm(Paradigm):
         float
             End time.
         """
-        # Support both legacy "MI,TRIAL,..." markers and Unity markers
         if any("," in m for m in markers):
             start_time = timestamps[0] - self.buffer_time
             end_time = (
@@ -77,12 +78,28 @@ class MiParadigm(Paradigm):
             )
             return start_time, end_time
 
-        # Unity markers: COND_MI/TRIAL_START ... COND_MI/TRIAL_END with LEFT/RIGHT/MI_CUE
-        start_time, end_time = self._unity_trial_times(markers, timestamps)
-        start_time = start_time - self.buffer_time
-        end_time = end_time + self.buffer_time
+        # Unity path — request only the window we actually need
+        start_time = timestamps[0]
+        for m, ts in zip(markers, timestamps):
+            if str(m).strip().upper() == "TRIAL STARTED":
+                start_time = ts
 
-        return start_time, end_time
+        end_time = start_time + self.unity_epoch_offset + self.unity_epoch_len
+        return start_time - self.buffer_time, end_time + self.buffer_time
+        # # Support both legacy "MI,TRIAL,..." markers and Unity markers
+        # if any("," in m for m in markers):
+        #     start_time = timestamps[0] - self.buffer_time
+        #     end_time = (
+        #         timestamps[-1] + float(markers[-1].split(",")[-1]) + self.buffer_time
+        #     )
+        #     return start_time, end_time
+
+        # # Unity markers: COND_MI/TRIAL_START ... COND_MI/TRIAL_END with LEFT/RIGHT/MI_CUE
+        # start_time, end_time = self._unity_trial_times(markers, timestamps)
+        # start_time = start_time - self.buffer_time
+        # end_time = end_time + self.buffer_time
+
+        # return start_time, end_time
 
     def process_markers(self, markers, marker_timestamps, eeg, eeg_timestamps, fsample):
         """
@@ -108,23 +125,50 @@ class MiParadigm(Paradigm):
         np.array
             Labels. Shape is (n_epochs).
         """
+        if not any("," in m for m in markers):
+            # Unity marker path
+            label = self._unity_trial_label(markers)
+            start_time = marker_timestamps[0]
+            for m, ts in zip(markers, marker_timestamps):
+                if str(m).strip().upper() == "TRIAL STARTED":
+                    start_time = ts
 
-        # Legacy marker format: "MI,TRIAL,label,epoch_length"
+            n_channels, _ = eeg.shape
+            marker_eeg_timestamps = eeg_timestamps - start_time
+            epoch_time = np.arange(
+                self.unity_epoch_offset,
+                self.unity_epoch_offset + self.unity_epoch_len,
+                1 / fsample
+            )
+            epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))
+            for c in range(n_channels):
+                epoch_eeg[0, c, :] = np.interp(
+                    epoch_time, marker_eeg_timestamps, eeg[c, :]
+                )
+            epoch_eeg[0, :, :] = super()._preprocess(
+                epoch_eeg[0, :, :], fsample, self.lowcut, self.highcut
+            )
+            return epoch_eeg, np.array([label], dtype=int)
+
+        # Legacy format — unchanged below
         if any("," in m for m in markers):
             y = np.zeros(len(markers), dtype=int)
+            # # Legacy marker format: "MI,TRIAL,label,epoch_length"
+            # if any("," in m for m in markers):
+            #     y = np.zeros(len(markers), dtype=int)
 
         for i, marker in enumerate(markers):
             marker = marker.split(",")
             label = int(marker[2])
             epoch_length = float(marker[3])
-            offset = float(marker[4]) if len(marker) > 4 else 0.0  # NEW
+            offset = float(marker[4]) if len(marker) > 4 else 0.0  
 
             n_channels, _ = eeg.shape
 
             marker_timestamp = marker_timestamps[i]
             marker_eeg_timestamps = eeg_timestamps - marker_timestamp
 
-            epoch_time = np.arange(offset, offset + epoch_length, 1 / fsample)  # CHANGED
+            epoch_time = np.arange(offset, offset + epoch_length, 1 / fsample)  
 
             epoch_eeg = np.zeros((1, n_channels, len(epoch_time)))
 
@@ -165,17 +209,11 @@ class MiParadigm(Paradigm):
         label = 0
         for m in markers:
             upper = str(m).strip().upper()
-            if upper == "LEFT":
+            if upper == "CUE LEFT":
                 label = 0
-            elif upper == "RIGHT":
+            elif upper == "CUE RIGHT":
                 label = 1
-            elif upper.startswith("MI_CUE"):
-                if "LEFT" in upper or upper.endswith("L"):
-                    label = 0
-                elif "RIGHT" in upper or upper.endswith("R"):
-                    label = 1
         return label
-
     # TODO: Implement this to check compatibility between paradigm and classifier
     def check_compatibility(self):
         pass

@@ -77,9 +77,15 @@ class Paradigm(ABC):
 
         """
 
+        # Apply CAR using all channels before any filtering or subsetting
         n_dims = len(eeg.shape)
         if n_dims == 2:
-            logger.debug("Preprocessing continuous EEG")
+            eeg = eeg - eeg.mean(axis=0, keepdims=True)  # CAR on [n_channels, n_samples]
+        elif n_dims == 3:
+            eeg = eeg - eeg.mean(axis=1, keepdims=True)  # CAR on [epochs, n_channels, n_samples]
+
+        # Filtering continues unchanged below
+        if n_dims == 2:
             preprocessed_eeg = bandpass(eeg, lowcut, highcut, order, fsample)
         elif n_dims == 3:
             logger.debug("Preprocessing epoched EEG")
