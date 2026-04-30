@@ -1,3 +1,8 @@
+# This file is based on work Copyright (c) 2023 BCI4Kids
+# Original source: https://github.com/kirtonBCIlab/bci-essentials-python
+# Licensed under the Mozilla Public License 2.0
+# Modifications made by Laura M. L. Earl, [2026]
+
 """
 **SSVEP Riemannian MDM Classifier**
 
